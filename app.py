@@ -1,0 +1,100 @@
+import streamlit as st
+import pandas as pd
+from xgboost import XGBRegressor
+import matplotlib.pyplot as plt
+import seaborn as sns
+import utils
+from millify import millify
+import datetime
+import pickle as pkl
+
+# Load data
+# @st.cache
+def load_data():
+    data = pd.read_csv("dataset/electricity_consumption.csv")
+    return data
+
+df = load_data()
+df = utils.data_preprocessing(df)
+xgb_model_loaded = pkl.load(open('model/xgb_reg.pkl', "rb"))
+
+# Sidebar
+st.sidebar.title("Options")
+min_date = df["Timestamp"].min()
+max_date = df["Timestamp"].max()
+selected_date = st.sidebar.date_input("Select date")
+selected_month = selected_date.month
+selected_year = selected_date.year
+
+# selected_date = st.sidebar.date_input("Select date", min_value=min_date, max_value=max_date)
+
+# Main content
+st.title("Electricity Consumption Dashboard")
+
+# Current Electricity Usage (Score Card)
+# Current Year Usage
+current_year_usage = df[(df['Timestamp'].dt.year == selected_year)]["W"].sum()
+previous_year_usage = df[(df['Timestamp'].dt.year == selected_year-1)]["W"].sum()
+
+# Current Month Usage
+current_month_usage = df[(df['Timestamp'].dt.month == selected_month) & (df['Timestamp'].dt.year == selected_year)]["W"].sum()
+
+if selected_month == 1:  # If the current month is January, the previous month is December of the previous year
+    previous_month = 12
+    previous_year = selected_year - 1
+else:
+    previous_month = selected_month - 1
+    previous_year = selected_year
+
+previous_month_usage = df[(df['Timestamp'].dt.month == previous_month) & (df['Timestamp'].dt.year == previous_year)]["W"].sum()
+
+# Today's Usage
+current_date_usage = df[(df['Timestamp'].dt.date == selected_date)]["W"].sum()
+previous_date_usage = df[(df['Timestamp'].dt.date == selected_date-datetime.timedelta(days=1))]["W"].sum()
+
+st.subheader("Current Usage")
+col1, col2, col3 = st.columns(3)
+col3.metric(label="Current Year Usage", value=f"{millify(current_year_usage)}Wh", delta=f"{millify(current_year_usage-previous_year_usage)}Wh")
+col2.metric(label="Current Month Usage", value=f"{millify(current_month_usage)}Wh", delta=f"{millify(current_month_usage-previous_month_usage)}Wh")
+col1.metric(label="Current Date Usage", value=f"{millify(current_date_usage)}Wh", delta=f"{millify(current_date_usage-previous_date_usage)}Wh")
+
+# Predicted Future Usage (Line Plot)
+st.subheader("Current Month Usage")
+
+# Assuming you have a function to predict future usage using your XGBoost model
+fig, ax = plt.subplots(figsize=(18, 6))
+
+data = df[(df['Timestamp'].dt.month == selected_month) &
+           (df['Timestamp'].dt.year == selected_year) &
+           (df['Timestamp'].dt.date <= selected_date)].groupby(df['Timestamp'].dt.day).agg({'W': 'sum'})
+
+df_remaining_date = utils.create_remaining_date_dataframe(selected_date)
+pred = xgb_model_loaded.predict(df_remaining_date)
+df_remaining_date['prediction'] = pd.DataFrame(data=pred, index=df_remaining_date.index, columns=["prediction"])
+df_remaining_date.reset_index(inplace=True)
+
+sns.pointplot(data=data, x="Timestamp", y="W", ax=ax, label='Actual')
+sns.pointplot(data=df_remaining_date, x=df_remaining_date["Timestamp"].dt.day, y="prediction", ax=ax, linestyles='--', label='Predicted')
+plt.xlabel("Date")
+plt.ylabel("Electricity Usage (Wh)")
+st.pyplot(fig)
+
+# Proportion of Usage per Device (Pie Chart)
+device_usage = df[df["Timestamp"].dt.date == selected_date].groupby("Device")["W"].sum()
+st.subheader("Usage per Device")
+fig, ax = plt.subplots(figsize=(18, 6))
+ax.pie(device_usage, labels=device_usage.index, autopct='%1.1f%%', startangle=90)
+ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+st.pyplot(fig)
+
+# Past Usage (Line Plot)
+st.subheader("All Time Usage")
+
+df_daily_consumption = df.groupby(['Device', pd.Grouper(key='Timestamp', freq='1D')]).agg({'W': 'sum'})
+df_daily_consumption.reset_index(inplace=True)
+
+fig, ax = plt.subplots(figsize=(18, 6))
+sns.lineplot(data=df_daily_consumption, x="Timestamp", y="W", hue="Device",ax=ax)
+plt.xlabel("Date")
+plt.ylabel("Electricity Usage (Wh)")
+st.pyplot(fig)
