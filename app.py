@@ -10,6 +10,8 @@ import pickle as pkl
 import seaborn.objects as so
 
 
+PRICE_PER_KWH = 415
+
 # Load data
 # @st.cache
 def load_data():
@@ -28,19 +30,25 @@ selected_date = st.sidebar.date_input("Select date", value=max_date.date(), min_
 selected_month = selected_date.month
 selected_year = selected_date.year
 
-# selected_date = st.sidebar.date_input("Select date", min_value=min_date, max_value=max_date)
+# Predict Remaining Date of The Month
+df_remaining_date = utils.create_remaining_date_dataframe(selected_date)
+pred = xgb_model_loaded.predict(df_remaining_date)
+df_remaining_date['prediction'] = pd.DataFrame(data=pred, index=df_remaining_date.index, columns=["prediction"])
+df_remaining_date.reset_index(inplace=True)
 
-# Main content
-st.title("ElectriCast Monitoring Dashboard")
-
-# Current Electricity Usage (Score Card)
 # Current Year Usage
 current_year_usage = df[(df['Timestamp'].dt.year == selected_year)]["W"].sum()
+
+# Previous Year Usage
 previous_year_usage = df[(df['Timestamp'].dt.year == selected_year-1)]["W"].sum()
 
 # Current Month Usage
 current_month_usage = df[(df['Timestamp'].dt.month == selected_month) & (df['Timestamp'].dt.year == selected_year)]["W"].sum()
 
+# Remaining Date of The Month Usage
+remaining_date_usage = df_remaining_date['prediction'].sum()
+
+# Previous Month Usage
 if selected_month == 1:  # If the current month is January, the previous month is December of the previous year
     previous_month = 12
     previous_year = selected_year - 1
@@ -54,11 +62,19 @@ previous_month_usage = df[(df['Timestamp'].dt.month == previous_month) & (df['Ti
 current_date_usage = df[(df['Timestamp'].dt.date == selected_date)]["W"].sum()
 previous_date_usage = df[(df['Timestamp'].dt.date == selected_date-datetime.timedelta(days=1))]["W"].sum()
 
-# st.subheader("Current Usage")
+# Electricity Bill
+current_month_bill = current_month_usage * PRICE_PER_KWH / 1000
+remaining_date_bill = remaining_date_usage * PRICE_PER_KWH / 1000
+previous_month_bill = previous_month_usage * PRICE_PER_KWH / 1000
+
+# Main content
+st.title("ElectriCast Monitoring Dashboard")
+
+# Current Electricity Usage (Score Card)
 col1, col2, col3 = st.columns(3)
-col3.metric(label="Current Year Usage", value=f"{millify(current_year_usage)}Wh", delta=f"{millify(current_year_usage-previous_year_usage)}Wh", delta_color='inverse')
-col2.metric(label="Current Month Usage", value=f"{millify(current_month_usage)}Wh", delta=f"{millify(current_month_usage-previous_month_usage)}Wh", delta_color='inverse')
-col1.metric(label="Current Date Usage", value=f"{millify(current_date_usage)}Wh", delta=f"{millify(current_date_usage-previous_date_usage)}Wh", delta_color='inverse')
+col1.metric(label="Current Month Usage", value=f"{millify(current_month_usage)}Wh", delta=f"{millify(current_month_usage-previous_month_usage)}Wh", delta_color='inverse')
+col2.metric(label="Predicted Remaining Date Usage", value=f"{millify(remaining_date_usage)}Wh")
+col3.metric(label="Predicted This Month's Bill", value=f"Rp{millify(current_month_bill + remaining_date_bill)}", delta=f"Rp{millify(current_month_bill + remaining_date_bill - previous_month_bill)}", delta_color='inverse')
 
 # Predicted Future Usage (Line Plot)
 st.subheader("Current Month Usage")
@@ -69,11 +85,6 @@ fig, ax = plt.subplots(figsize=(18, 6))
 data = df[(df['Timestamp'].dt.month == selected_month) &
            (df['Timestamp'].dt.year == selected_year) &
            (df['Timestamp'].dt.date <= selected_date)].groupby(df['Timestamp'].dt.day).agg({'W': 'sum'})
-
-df_remaining_date = utils.create_remaining_date_dataframe(selected_date)
-pred = xgb_model_loaded.predict(df_remaining_date)
-df_remaining_date['prediction'] = pd.DataFrame(data=pred, index=df_remaining_date.index, columns=["prediction"])
-df_remaining_date.reset_index(inplace=True)
 
 sns.pointplot(data=data, x="Timestamp", y="W", ax=ax, label='Actual')
 sns.pointplot(data=df_remaining_date, x=df_remaining_date["Timestamp"].dt.day, y="prediction", ax=ax, linestyles='--', label='Predicted')
