@@ -7,6 +7,8 @@ import utils
 from millify import millify
 import datetime
 import pickle as pkl
+import seaborn.objects as so
+
 
 # Load data
 # @st.cache
@@ -22,14 +24,14 @@ xgb_model_loaded = pkl.load(open('model/xgb_reg.pkl', "rb"))
 st.sidebar.title("Options")
 min_date = df["Timestamp"].min()
 max_date = df["Timestamp"].max()
-selected_date = st.sidebar.date_input("Select date")
+selected_date = st.sidebar.date_input("Select date", value=max_date.date(), min_value=min_date, max_value=max_date)
 selected_month = selected_date.month
 selected_year = selected_date.year
 
 # selected_date = st.sidebar.date_input("Select date", min_value=min_date, max_value=max_date)
 
 # Main content
-st.title("Electricity Consumption Dashboard")
+st.title("ElectriCast Monitoring Dashboard")
 
 # Current Electricity Usage (Score Card)
 # Current Year Usage
@@ -52,11 +54,11 @@ previous_month_usage = df[(df['Timestamp'].dt.month == previous_month) & (df['Ti
 current_date_usage = df[(df['Timestamp'].dt.date == selected_date)]["W"].sum()
 previous_date_usage = df[(df['Timestamp'].dt.date == selected_date-datetime.timedelta(days=1))]["W"].sum()
 
-st.subheader("Current Usage")
+# st.subheader("Current Usage")
 col1, col2, col3 = st.columns(3)
-col3.metric(label="Current Year Usage", value=f"{millify(current_year_usage)}Wh", delta=f"{millify(current_year_usage-previous_year_usage)}Wh")
-col2.metric(label="Current Month Usage", value=f"{millify(current_month_usage)}Wh", delta=f"{millify(current_month_usage-previous_month_usage)}Wh")
-col1.metric(label="Current Date Usage", value=f"{millify(current_date_usage)}Wh", delta=f"{millify(current_date_usage-previous_date_usage)}Wh")
+col3.metric(label="Current Year Usage", value=f"{millify(current_year_usage)}Wh", delta=f"{millify(current_year_usage-previous_year_usage)}Wh", delta_color='inverse')
+col2.metric(label="Current Month Usage", value=f"{millify(current_month_usage)}Wh", delta=f"{millify(current_month_usage-previous_month_usage)}Wh", delta_color='inverse')
+col1.metric(label="Current Date Usage", value=f"{millify(current_date_usage)}Wh", delta=f"{millify(current_date_usage-previous_date_usage)}Wh", delta_color='inverse')
 
 # Predicted Future Usage (Line Plot)
 st.subheader("Current Month Usage")
@@ -82,9 +84,14 @@ st.pyplot(fig)
 # Proportion of Usage per Device (Pie Chart)
 device_usage = df[df["Timestamp"].dt.date == selected_date].groupby("Device")["W"].sum()
 st.subheader("Usage per Device")
-fig, ax = plt.subplots(figsize=(18, 6))
-ax.pie(device_usage, labels=device_usage.index, autopct='%1.1f%%', startangle=90)
-ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+fig, ax = plt.subplots(1,2,figsize=(18, 6), gridspec_kw={'width_ratios': [3, 1]})
+ax[1].pie(device_usage, labels=device_usage.index, autopct='%1.1f%%', startangle=90)
+ax[1].axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+# Plot hourly trend all devices
+data = df[df["Timestamp"].dt.date == selected_date]
+sns.pointplot(data=data, x=data['Timestamp'].dt.hour, hue='Device', y='W', ax=ax[0])
+ax[0].set_xlabel('Hour')
 st.pyplot(fig)
 
 # Past Usage (Line Plot)
