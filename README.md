@@ -1,7 +1,7 @@
 # ElectriCast
 Electricast is an innovative application designed to revolutionize how households manage their electricity usage. By integrating seamlessly with Internet of Things (IoT) devices and harnessing the power of artificial intelligence (AI), Electricast provides accurate forecasts of electricity consumption, empowering users to make informed decisions about their energy usage.
 
-![Electricast WebApp](images/tg_image_4016931284.jpg)
+![Electricast WebApp](images/tg_image_4016931284.jpeg)
 
 ## Features
 - **IoT Integration**: Electricast seamlessly integrates with IoT devices to gather real-time data on electricity usage within households.
