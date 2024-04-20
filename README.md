@@ -31,5 +31,5 @@ Electricast is live on https://electricast.streamlit.app/ or you can install it 
 Once Electricast is installed and running, users can access the dashboard through their web browser. From the dashboard, users can view real-time electricity usage data, explore predictive analytics, and adjust settings to optimize energy consumption.
 
 
-Contact
+## Contact
 For any inquiries or support, please contact us at dandyarifrahman.work@gmail.com.
