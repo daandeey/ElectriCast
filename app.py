@@ -116,3 +116,5 @@ sns.lineplot(data=df_daily_consumption, x="Timestamp", y="W", hue="Device",ax=ax
 plt.xlabel("Date")
 plt.ylabel("Electricity Usage (Wh)")
 st.pyplot(fig)
+
+# This is new line
